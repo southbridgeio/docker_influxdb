@@ -1,0 +1,30 @@
+# Host name (or IP address) of InfluxDB server e.g localhost
+DBHOST=localhost
+
+#daemon port
+DBPORT="8088"
+
+# Backup directory location e.g /backups
+BACKUPDIR="/var/backups/influxdb"
+
+# Whether should I explicitly dump metastore
+# for more info see: https://docs.influxdata.com/influxdb/v1.2/administration/backup_and_restore/
+BACKUP_METASTORE=true
+
+# List of dbs to backup
+# if 'all' specified will backup all found databases
+BACKUP_DBS='all'
+
+# Nice running level
+NICE=20
+
+# Mail setup
+# What would you like to be mailed to you?
+# - log   : send only log file
+# - files : send log file and sql files as attachments (see docs)
+# - stdout : will simply output the log to the screen if run manually.
+# - quiet : Only send logs if an error occurs to the MAILADDR.
+MAILCONTENT="quiet"
+
+# Email Address to send mail to? (user@domain.com)
+MAILADDR="root"
