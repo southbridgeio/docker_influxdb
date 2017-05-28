@@ -27,7 +27,6 @@ EXPOSE 8086
 EXPOSE 8088
 
 VOLUME /var/lib/influxdb
-
 VOLUME /var/backups/influxdb
 
 RUN touch /root/.influxdb
