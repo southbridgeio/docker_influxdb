@@ -24,11 +24,9 @@ RUN wget -q https://dl.influxdata.com/influxdb/releases/influxdb_${INFLUXDB_VERS
 COPY influxdb.conf /etc/influxdb/influxdb.conf
 
 EXPOSE 8086
+EXPOSE 8088
 
 VOLUME /var/lib/influxdb
-VOLUME /var/lib/influxdb/data
-VOLUME /var/lib/influxdb/meta
-VOLUME /var/lib/influxdb/wal
 
 VOLUME /var/backups/influxdb
 
