@@ -129,8 +129,6 @@ DOM=`date +%d` # Date of the Month e.g. 27
 M=`date +%B` # Month e.g January
 W=`date +%V` # Week Number e.g 37
 VER=0.9.0.11-sb # Version Number
-LOGFILE=$BACKUPDIR/$DBHOST-`date +%N`.log # Logfile Name
-LOGERR=$BACKUPDIR/ERRORS_$DBHOST-`date +%N`.log # Logfile Name
 BACKUPFILES=""
 OPT="" # OPT string for use with influxdump
 OPTI="" # OPT string for use with influxdump
@@ -146,6 +144,9 @@ else
     echo "influxdb-backup.conf.dist not found"
     exit 0
 fi
+
+LOGFILE=$BACKUPDIR/$DBHOST-`date +%N`.log # Logfile Name
+LOGERR=$BACKUPDIR/ERRORS_$DBHOST-`date +%N`.log # Logfile Name
 
 if [ ! "$NICE" ]; then
   NICE=20
@@ -337,14 +338,11 @@ fi
 
 # Clean up IO redirection if we plan not to deliver log via e-mail.
 [ ! "x$MAILCONTENT" == "xlog" ] && exec 1>&6 2>&7 6>&- 7>&-
-#if [ -s "$LOGERR" ]
-#    then
-#    sed -i "/^connected/d" "$LOGERR"
-#    sed -i "/writing/d" "$LOGERR"
-#    sed -i "/done/d" "$LOGERR"
-#    sed -i "/dumped .* oplog entries/d" "$LOGERR"
-#    sed -i "/error getting oplog start/d" "$LOGERR"
-#fi
+if [ -s "$LOGERR" ]
+    then
+    sed -i "/ backing up /d" "$LOGERR"
+    sed -i "/ backup complete /d" "$LOGERR"
+fi
 
 if [ "$MAILCONTENT" = "log" ]
     then
