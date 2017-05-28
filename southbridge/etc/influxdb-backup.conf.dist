@@ -24,7 +24,25 @@ NICE=20
 # - files : send log file and sql files as attachments (see docs)
 # - stdout : will simply output the log to the screen if run manually.
 # - quiet : Only send logs if an error occurs to the MAILADDR.
-MAILCONTENT="quiet"
+MAILCONTENT="stdout"
 
 # Email Address to send mail to? (user@domain.com)
 MAILADDR="root"
+
+# Which day do you want weekly backups? (1 to 7 where 1 is Monday)
+DOWEEKLY=6
+
+# How many month keep backups
+BACKUP_MONTH=4
+
+# How many weeks keep backups
+BACKUP_WEEKS=4
+
+# How many days keep backups
+BACKUP_DAYS=5
+
+# Choose Compression type. (gzip or bzip2)
+COMP="gzip"
+
+# Choose if the uncompressed folder should be deleted after compression has completed
+CLEANUP="yes"

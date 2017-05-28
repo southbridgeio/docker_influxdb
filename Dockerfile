@@ -32,6 +32,7 @@ VOLUME /var/lib/influxdb/wal
 
 VOLUME /var/backups/influxdb
 
+RUN touch /root/.influxdb
 COPY southbridge/ /srv/southbridge/.
 
 COPY entrypoint.sh /entrypoint.sh

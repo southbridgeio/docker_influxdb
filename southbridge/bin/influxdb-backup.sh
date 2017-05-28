@@ -2,8 +2,7 @@
 set -e
 #
 # InfluxDB Backup Script
-# VER. 0.1
-# More Info: http://github.com/micahwedemeyer/automongobackup
+# VER. 0.2
 #=====================================================================
 #=====================================================================
 # Set the following variables to your system needs
@@ -11,13 +10,14 @@ set -e
 #=====================================================================
 
 # External config - override default values set below
-EXTERNAL_CONFIG="/srv/southbridge/etc/influx-backup.conf" # centos style
+EXTERNAL_CONFIG="/srv/southbridge/etc/influxdb-backup.conf" # centos style
 
 # Host name (or IP address) of influx server e.g localhost
 DBHOST="localhost"
 
 # Port that influx is listening on
 DBPORT="8088"
+DBPORTI="8086"
 
 # Backup directory location e.g /backups
 BACKUPDIR="/var/backups/influxdb"
@@ -128,18 +128,22 @@ DNOW=`date +%u` # Day number of the week 1 to 7 where 1 represents Monday
 DOM=`date +%d` # Date of the Month e.g. 27
 M=`date +%B` # Month e.g January
 W=`date +%V` # Week Number e.g 37
-VER=0.9 # Version Number
+VER=0.9.0.11-sb # Version Number
+LOGFILE=$BACKUPDIR/$DBHOST-`date +%N`.log # Logfile Name
+LOGERR=$BACKUPDIR/ERRORS_$DBHOST-`date +%N`.log # Logfile Name
 BACKUPFILES=""
 OPT="" # OPT string for use with influxdump
+OPTI="" # OPT string for use with influxdump
 LOCATION="$(cd -P -- "$(dirname -- "$0")" && pwd -P)/.."
+#"
 
-if [ -f "$LOCATION/etc/influx-backup.conf.dist" ]; then
-    . "$LOCATION/etc/influx-backup.conf.dist"
-    if [ -f "$LOCATION/etc/influx-backup.conf" ]; then
-	. "$LOCATION/etc/influx-backup.conf"
+if [ -f "$LOCATION/etc/influxdb-backup.conf.dist" ]; then
+    . "$LOCATION/etc/influxdb-backup.conf.dist"
+    if [ -f "$LOCATION/etc/influxdb-backup.conf" ]; then
+	. "$LOCATION/etc/influxdb-backup.conf"
     fi
 else
-    echo "influx-backup.conf.dist not found"
+    echo "influxdb-backup.conf.dist not found"
     exit 0
 fi
 
@@ -182,34 +186,36 @@ if [ "$LATEST" = "yes" ]
     eval rm -f "$BACKUPDIR/latest/*"
 fi
 
+# IO redirection for logging.
+touch $LOGFILE
+exec 6>&1 # Link file descriptor #6 with stdout.
+                    # Saves stdout.
+exec > $LOGFILE # stdout replaced with file $LOGFILE.
+
+touch $LOGERR
+exec 7>&2 # Link file descriptor #7 with stderr.
+                    # Saves stderr.
+exec 2> $LOGERR # stderr replaced with file $LOGERR.
+
+# When a desire is to receive log via e-mail then we close stdout and stderr.
+[ "x$MAILCONTENT" == "xlog" ] && exec 6>&- 7>&-
 
 # Functions
 
 # Database dump function
 dbdump () {
   if ${BACKUP_METASTORE} ; then
-    influxd backup "${1}/metastore"
+    influxd backup $OPT "${1}/metastore"
   fi
 
   if [ "x${BACKUP_DBS}" == "xall" ]; then
-    BACKUP_DBS=$(influx -execute 'SHOW DATABASES' | tail -n+4 | tr '\n' ' ')
+    BACKUP_DBS=$(influx $OPTI -execute 'SHOW DATABASES' | tail -n+4 | tr '\n' ' ')
   fi
 
   for db in ${BACKUP_DBS}; do
-    influxd backup -database "${db}" "${1}/${db}"
+    influxd backup $OPT -database "${db}" "${1}/${db}"
   done
 
-#  if [ "$DO_HOT_BACKUP" = "yes" ]; then
-#	  $NICE_CMD influx admin $LOCATION/etc/influxdb_backup.js
-#	  [ -e "$1" ] && return 0
-#	  echo "ERROR: influx failed to create hot backup: $1" >&2
-#	  return 1
-#  else
-#	  $NICE_CMD influxdump --host=$DBHOST:$DBPORT --out=$1 #$OPT
-#  	[ -e "$1" ] && return 0
-#  	echo "ERROR: influxdump failed to create dumpfile: $1" >&2
-#  	return 1
-#  fi
 }
 
 # Compression function plus latest copy
@@ -257,6 +263,8 @@ fi
 if [ "$DBHOST" = "localhost" ]; then
     HOST=`hostname`
 else
+    OPT=$OPT" -host $DBHOST:$DBPORT "
+    OPTI=$OPTI" -host $DBHOST:$DBPORTI "
     HOST=$DBHOST
 fi
 
@@ -269,38 +277,42 @@ echo ======================================================================
 # Monthly Full Backup of all Databases
 if [ $DOM = "01" ]; then
     echo Monthly Full Backup
-    dbdump "$BACKUPDIR/monthly/$DATE.$M" &&
-    compression "$BACKUPDIR/monthly/" "$DATE.$M"
+    if [[ $BACKUP_MONTH -ge 0 ]] ; then
+      NUM_OLD_FILES=$(find $BACKUPDIR/monthly -depth -not -newermt "$BACKUP_MONTH month ago" -type f | wc -l)
+      if [[ $NUM_OLD_FILES -gt 0 ]] ; then
+        echo Deleting "$NUM_OLD_FILES" global setting backup file\(s\) older than "$BACKUP_MONTH" month\(s\) old.
+        find $BACKUPDIR/monthly -not -newermt "$BACKUP_MONTH month ago" -type f -delete
+      fi
+    fi
+    dbdump "$BACKUPDIR/monthly/$DATE.$M" &&  compression "$BACKUPDIR/monthly/" "$DATE.$M"
 echo ----------------------------------------------------------------------
 
 # Weekly Backup
 elif [ $DNOW = $DOWEEKLY ]; then
     echo Weekly Backup
     echo
-    echo Rotating 5 weeks Backups...
-if [ "$W" -le 05 ];then
-    REMW=`expr 48 + $W`
-elif [ "$W" -lt 15 ];then
-    REMW=0`expr $W - 5`
-else
-    REMW=`expr $W - 5`
-fi
-
-eval rm -f "$BACKUPDIR/weekly/week.$REMW.*"
-echo
-    dbdump "$BACKUPDIR/weekly/week.$W.$DATE" &&
-    compression "$BACKUPDIR/weekly/" "week.$W.$DATE"
+    if [[ $BACKUP_WEEKS -ge 0 ]] ; then
+      NUM_OLD_FILES=$(find $BACKUPDIR/weekly -depth -not -newermt "$BACKUP_WEEKS week ago" -type f | wc -l)
+      if [[ $NUM_OLD_FILES -gt 0 ]] ; then
+        echo Deleting "$NUM_OLD_FILES" global setting backup file\(s\) older than "$BACKUP_WEEKS" week\(s\) old.
+        find $BACKUPDIR/weekly -not -newermt "$BACKUP_WEEKS week ago" -type f -delete
+      fi
+    fi
+    dbdump "$BACKUPDIR/weekly/week.$W.$DATE" &&  compression "$BACKUPDIR/weekly/" "week.$W.$DATE"
 echo ----------------------------------------------------------------------
 
 # Daily Backup
 else
 echo Daily Backup of Databases
-echo Rotating last weeks Backup...
 echo
-    eval rm -f "$BACKUPDIR/daily/*.$DOW.*"
-echo
-    dbdump "$BACKUPDIR/daily/$DATE.$DOW" &&
-    compression "$BACKUPDIR/daily/" "$DATE.$DOW"
+    if [[ $BACKUP_DAYS -ge 0 ]] ; then
+      NUM_OLD_FILES=$(find $BACKUPDIR/daily -depth -not -newermt "$BACKUP_DAYS days ago" -type f | wc -l)
+      if [[ $NUM_OLD_FILES -gt 0 ]] ; then
+        echo Deleting "$NUM_OLD_FILES" global setting backup file\(s\) older than "$BACKUP_DAYS" day\(s\) old.
+        find $BACKUPDIR/weekly -not -newermt "$BACKUP_DAYS days ago" -type f -delete
+      fi
+    fi
+    dbdump "$BACKUPDIR/daily/$DATE.$DOW" &&  compression "$BACKUPDIR/daily/" "$DATE.$DOW"
 echo ----------------------------------------------------------------------
 fi
 echo Backup End Time `date`
@@ -322,3 +334,54 @@ eval $POSTBACKUP
 echo
 echo ======================================================================
 fi
+
+# Clean up IO redirection if we plan not to deliver log via e-mail.
+[ ! "x$MAILCONTENT" == "xlog" ] && exec 1>&6 2>&7 6>&- 7>&-
+#if [ -s "$LOGERR" ]
+#    then
+#    sed -i "/^connected/d" "$LOGERR"
+#    sed -i "/writing/d" "$LOGERR"
+#    sed -i "/done/d" "$LOGERR"
+#    sed -i "/dumped .* oplog entries/d" "$LOGERR"
+#    sed -i "/error getting oplog start/d" "$LOGERR"
+#fi
+
+if [ "$MAILCONTENT" = "log" ]
+    then
+    cat "$LOGFILE" | mail -s "Mongo Backup Log for $HOST - $DATE" $MAILADDR
+    if [ -s "$LOGERR" ]; then
+            cat "$LOGERR"
+            (cat "$LOGERR";echo "stdout log:" ; cat "$LOGFILE") | mail -s "ERRORS REPORTED: Mongo Backup error Log for $HOST - $DATE" $MAILADDR
+    fi
+
+elif [ "$MAILCONTENT" = "quiet" ]
+    then
+    if [ -s "$LOGERR" ]
+    then
+        (cat "$LOGERR";echo "stdout log:" ; cat "$LOGFILE") | mail -s "ERRORS REPORTED: MongoDB Backup error Log for $HOST - $DATE" $MAILADDR
+        cat "$LOGFILE" | mail -s "MongoDB Backup Log for $HOST - $DATE" $MAILADDR
+    fi
+else
+    if [ -s "$LOGERR" ]
+        then
+        cat "$LOGFILE"
+        echo
+        echo "###### WARNING ######"
+        echo "STDERR written to during mongodump execution."
+        echo "The backup probably succeeded, as mongodump sometimes writes to STDERR, but you may wish to scan the error log below:"
+        cat "$LOGERR"
+    else
+        cat "$LOGFILE"
+    fi
+fi
+
+# TODO: Would be nice to know if there were any *actual* errors in the $LOGERR
+STATUS=0
+if [ -s "$LOGERR" ]; then
+  STATUS=1
+fi
+# Clean up Logfile
+eval rm -f "$LOGFILE"
+eval rm -f "$LOGERR"
+
+exit $STATUS
