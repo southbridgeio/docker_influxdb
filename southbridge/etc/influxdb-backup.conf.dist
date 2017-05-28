@@ -1,8 +1,11 @@
 # Host name (or IP address) of InfluxDB server e.g localhost
 DBHOST=localhost
 
-#daemon port
+# backup port
 DBPORT="8088"
+
+# client api port
+DBPORTI="8086"
 
 # Backup directory location e.g /backups
 BACKUPDIR="/var/backups/influxdb"
