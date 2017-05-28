@@ -1,0 +1,6 @@
+copy1:
+ stage: build
+ script:
+   - pwd
+   - git remote set-url --push origin  git@github.com:centosadmin/docker_influxdb.git
+   - git push --mirror
