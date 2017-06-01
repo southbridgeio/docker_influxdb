@@ -362,14 +362,20 @@ elif [ "$MAILCONTENT" = "quiet" ]
 else
     if [ -s "$LOGERR" ]
         then
+        echo "###### STDERR LOG WARNING ######"
+        echo "STDERR written to during influx dump execution."
+        echo "The backup probably succeeded, as influxdump sometimes writes to STDERR, but you may wish to scan the error log below:"
+        echo "--- start stdout log ---"
         cat "$LOGFILE"
+        echo "--- finish stdout log ---"
         echo
-        echo "###### WARNING ######"
-        echo "STDERR written to during mongodump execution."
-        echo "The backup probably succeeded, as mongodump sometimes writes to STDERR, but you may wish to scan the error log below:"
+        echo "--- start stderr log ---"
         cat "$LOGERR"
+        echo "--- finish stderr log ---"
     else
+        echo "--- start stdout log ---"
         cat "$LOGFILE"
+        echo "--- finish stdout log ---"
     fi
 fi
 
