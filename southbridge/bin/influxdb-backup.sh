@@ -341,7 +341,7 @@ fi
 if [ -s "$LOGERR" ]
     then
     sed -i "/ backing up /d" "$LOGERR"
-    sed -i "/ backup complete /d" "$LOGERR"
+    sed -i "/ backup complete/d" "$LOGERR"
 fi
 
 if [ "$MAILCONTENT" = "log" ]
